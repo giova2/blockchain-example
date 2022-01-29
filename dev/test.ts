@@ -1,6 +1,6 @@
-const BlockChain = require('./blockchain')
+import BlockChain from './blockchain';
 
-const bitcoin = new BlockChain()
+const bitcoin = BlockChain()
 
 console.log({bitcoin});
 

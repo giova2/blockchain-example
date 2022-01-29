@@ -1,12 +1,30 @@
-export type BlockchainElem = {
-  chain: Array<Blockchain>;
+export type BlockchainObject = {
+  createNewBlock: ({ nonce, previousBlockHash, hash }: CreateNewBlockArguments) => Block; 
+  getLastBlock: () => Block
+  createNewTransaction: ({ amount, sender, recipient }: CreateNewTransactionArguments) => Transaction;
+  addTransactionToPendingTransactions: (transactionObj: Transaction) => number;
+  hashBlock: ({ previousBlockHash, currentBlockData, nonce }: HashBlockArguments) => string;
+  proofOfWork: ({ previousBlockHash, currentBlockData }: ProofOfWorkArguments) => number
+  isValidChain: (blockchain: Array<Block>) => boolean;
+} & Blockchain;
+
+
+export type Blockchain = {
+  chain: Array<Block>;
   pendingTransactions: Array<Transaction>;
   currentNodeUrl: string;
   networkNodes: Array<string>;
-  createNewBlock: (args: CreateNewBlockArguments) => Block
+  // createNewBlock: (args: CreateNewBlockArguments) => Block
 }
 
-export type Blockchain = Array<BlockchainElem>;
+export type Block = {
+  index: number;
+  timestamp: number;
+  transactions: Array<Transaction>;
+  nonce: number;
+  hash: string;
+  previousBlockHash: string;
+}
 
 export type CreateNewBlockArguments ={
   nonce: number;
@@ -22,13 +40,19 @@ export type CreateNewTransactionArguments = {
 
 export type HashBlockArguments = {
   previousBlockHash: string;
-  currentBlockData: Block;
+  currentBlockData: {
+    transactions: Array<Transaction>;
+    index: number;
+  };
   nonce: number;
 }
 
 export type ProofOfWorkArguments = {
   previousBlockHash: string;
-  currentBlockData: Block;
+  currentBlockData: {
+    transactions: Array<Transaction>;
+    index: number;
+  };
 }
 
 export type Transaction = {
@@ -36,13 +60,4 @@ export type Transaction = {
   sender: string;
   recipient: string;
   transactionId: string;
-}
-
-export type Block = {
-  index: number;
-  timestamp: Date;
-  transactions: Array<Transaction>;
-  nonce: number;
-  hash: string;
-  previousBlockHash: string;
 }

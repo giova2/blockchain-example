@@ -1,4 +1,5 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+// const fetch = (...args:any) => import('node-fetch').then(({default: fetch}) => fetch.apply(null, args));
+// const fetch = require('node-fetch');
 const ports = [1,2,3,4,5];
 ports.forEach(cipher => {
   const reqOptions = {

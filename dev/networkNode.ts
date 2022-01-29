@@ -1,16 +1,20 @@
-const express = require('express')
+import express from 'express'
+import bodyParser from 'body-parser';
+import Blockchain from './blockchain';
+import {createId} from'./utils';
+import { CanBeAddedArguments } from './types/networkNode';
+import {Block, Transaction} from './types/blockchain';
+const fetch = require('node-fetch');
 const app = express()
-const bodyParser = require('body-parser');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-const Blockchain = require('./blockchain');
-const {createId} = require('./utils');
+// const fetch = (...args:any) => import('node-fetch').then(({default: fetch}) => fetch.apply(null, args));
+
 const port = process.argv[2];
 
 const nodeAddress = createId();
 
-const bitcoin = new Blockchain();
+const bitcoin = Blockchain();
 
-const canBeAdded = ({ networkNodes, currentNodeUrl, newNodeUrl} ) =>{
+const canBeAdded = ({ networkNodes, currentNodeUrl, newNodeUrl}: CanBeAddedArguments): boolean =>{
   const notCurrentNode = currentNodeUrl !== newNodeUrl;
   return notCurrentNode && !networkNodes.includes(newNodeUrl)
 }
@@ -24,16 +28,16 @@ app.get('/blockchain', function (req, res) {
 })
 
 app.get('/consensus', function (req, res) {
-  const requestPromises = [];
+  const requestPromises: Array<Promise<any>> = [];
   bitcoin.networkNodes.forEach(networkNodeUrl => {
-    requestPromises.push(fetch(`${networkNodeUrl}/blockchain`).then(res => res.json()));
+    requestPromises.push(fetch(`${networkNodeUrl}/blockchain`).then((res: any) => res.json()));
   })
   Promise.all(requestPromises)
   .then(blockchains =>{
     const currentChainLength = bitcoin.chain.length;
     let maxChainLength = currentChainLength;
     let newLongestChain =  null;
-    let newPendingTransactions = null;
+    let newPendingTransactions: Array<Transaction> = [];
     blockchains.forEach(blockchain => {
       if(blockchain.chain.length > maxChainLength){
         maxChainLength = blockchain.chain.length;
@@ -66,9 +70,9 @@ app.post('/transaction', function (req, res) {
 
 app.post('/transaction/broadcast', function (req, res) {
   const {amount, sender, recipient} = req.body;
-  const newTransaction = bitcoin.createNewTransaction(amount, sender, recipient);
+  const newTransaction = bitcoin.createNewTransaction({ amount, sender, recipient });
   bitcoin.addTransactionToPendingTransactions(newTransaction);
-  const requestPromises = [];
+  const requestPromises: Array<Promise<any>> = [];
 
   bitcoin.networkNodes.forEach(networkNodeUrl => {
     const requestOptions = {
@@ -77,7 +81,7 @@ app.post('/transaction/broadcast', function (req, res) {
       headers: { 'Content-Type': 'application/json' }
     }
     const response = fetch(`${networkNodeUrl}/transaction`, requestOptions)
-    .catch((err)=>{
+    .catch((err: any)=>{
       console.log('error en la transaction broadcast', {err})
     });
     requestPromises.push(response);
@@ -95,11 +99,11 @@ app.get('/mine', function (req, res) {
     transactions: bitcoin.pendingTransactions,
     index: lastBlock.index +1
   }
-  const nonce = bitcoin.proofOfWork(previousBlockHash, currentBlockData);
-  const blockHash = bitcoin.hashBlock(previousBlockHash, currentBlockData, nonce);
+  const nonce = bitcoin.proofOfWork({previousBlockHash, currentBlockData} );
+  const blockHash = bitcoin.hashBlock({ previousBlockHash, currentBlockData, nonce} );
 
-  const newBlock = bitcoin.createNewBlock(nonce, previousBlockHash, blockHash);
-  const requestPromises = [];
+  const newBlock = bitcoin.createNewBlock({nonce, previousBlockHash, hash: blockHash});
+  const requestPromises: Array<Promise<Block>> = [];
   // we loop through all the nodes on the network to share the new block we just created
   bitcoin.networkNodes.forEach(networkNodeUrl => {
     const requestOptions = {
@@ -108,8 +112,8 @@ app.get('/mine', function (req, res) {
       headers: { 'Content-Type': 'application/json' }
     }
     console.log({networkNodeUrl});
-    const response = fetch(`${networkNodeUrl}/receive-new-block`, requestOptions)
-    .catch((err)=>{
+    const response: Promise<any> = fetch(`${networkNodeUrl}/receive-new-block`, requestOptions)
+    .catch((err: any)=>{
       console.log('error en mine', {err})
     });
     requestPromises.push(response);
@@ -123,12 +127,13 @@ app.get('/mine', function (req, res) {
       headers: { 'Content-Type': 'application/json' }
     }
     return fetch(`${bitcoin.currentNodeUrl}/transaction/broadcast`, requestOptions)
-    .catch((err)=>{
+    .catch((err: any)=>{
       console.log('error broadcasting the reward', {err})
     });
   })
   // once all the nodes have the transaction, we return a message of success
   .then(data =>{
+    bitcoin.pendingTransactions = [];
     res.json({
       note: "New block mined & broadcast successfully",
       newBlock,
@@ -143,7 +148,7 @@ app.post('/register-and-broadcast-node', function(req,res){
   if(!bitcoin.networkNodes.includes(newNodeUrl) && bitcoin.currentNodeUrl !== newNodeUrl){
     bitcoin.networkNodes.push(newNodeUrl)
   }
-  const registerNodesPromises = []
+  const registerNodesPromises: Array<Promise<any>> = []
   bitcoin.networkNodes.forEach((networkNodeUrl)=>{
     const requestOptions = {
       method: 'POST',
@@ -151,7 +156,7 @@ app.post('/register-and-broadcast-node', function(req,res){
       headers: { 'Content-Type': 'application/json' }
     }
     const response = fetch(`${networkNodeUrl}/register-node`, requestOptions)
-    .catch((err)=>{
+    .catch((err: any)=>{
       console.log('error en la primera parte', {err})
     });
     registerNodesPromises.push(response);
@@ -166,7 +171,7 @@ app.post('/register-and-broadcast-node', function(req,res){
     };
     
     const jsonResponse = fetch(`${newNodeUrl}/register-nodes-bulk`, bulkRegisterOptions)
-    .catch((err)=>{
+    .catch((err: any)=>{
       console.log('error en la segunda parte', {newNodeUrl, err})
     });
     res.json({ note: 'New node registered with network successfully'});
@@ -187,7 +192,7 @@ app.post('/register-node', function(req,res){
 // register multiple nodes at once
 app.post('/register-nodes-bulk', function(req,res){
   const { allNetworkNodes } = req.body;
-  (allNetworkNodes || []).forEach((newNodeUrl) =>{
+  (allNetworkNodes || []).forEach((newNodeUrl:string) =>{
     const { networkNodes, currentNodeUrl } = bitcoin;
     if(canBeAdded({ networkNodes, currentNodeUrl, newNodeUrl})){
       bitcoin.networkNodes.push(newNodeUrl);
